@@ -9,6 +9,7 @@ import (
 func (app *application) routes() http.Handler {
 	// Initialize the router.
 	router := httprouter.New()
+
 	router.NotFound = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		app.notFound(w)
 	})
@@ -17,14 +18,16 @@ func (app *application) routes() http.Handler {
 	fileServer := http.FileServer(http.Dir("./ui/static/"))
 	router.Handler(http.MethodGet, "/static/*filepath", http.StripPrefix("/static", fileServer))
 
-	// And then create the routes using the appropriate methods, patterns and handlers.
-	router.HandlerFunc(http.MethodGet, "/", app.home)
-	router.HandlerFunc(http.MethodGet, "/snippet/view/:id", app.snippetView)
-	router.HandlerFunc(http.MethodGet, "/snippet/create", app.snippetCreate)
-	router.HandlerFunc(http.MethodPost, "/snippet/create", app.snippetCreatePost)
+	dynamic := alice.New(app.sessionManager.LoadAndSave)
+	// Update these routes to use the new dynamic middleware chain followed by
+	// the appropriate handler function. Note that because the alice ThenFunc()
+	// method returns a http.Handler (rather than a http.HandlerFunc) we also
+	// need to switch to registering the route using the router.Handler() method.
+	router.Handler(http.MethodGet, "/", dynamic.ThenFunc(app.home))
+	router.Handler(http.MethodGet, "/snippet/view/:id", dynamic.ThenFunc(app.snippetView))
+	router.Handler(http.MethodGet, "/snippet/create", dynamic.ThenFunc(app.snippetCreate))
+	router.Handler(http.MethodPost, "/snippet/create", dynamic.ThenFunc(app.snippetCreatePost))
 
-	// Create the middleware chain as normal.
 	standard := alice.New(app.recoverPanic, app.logRequest, secureHeaders)
-	// Wrap the router with the middleware and return it as normal.
 	return standard.Then(router)
 }
