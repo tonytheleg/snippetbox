@@ -3,25 +3,27 @@ package main
 import (
 	"database/sql"
 	"flag"
+	"github.com/go-playground/form/v4"
+	_ "github.com/go-sql-driver/mysql"
+	"github.com/tonytheleg/snippetbox/internal/models"
+	"html/template" // New import
 	"log"
 	"net/http"
 	"os"
-
-	"github.com/tonytheleg/snippetbox/internal/models"
-
-	_ "github.com/go-sql-driver/mysql" // New import
 )
 
+// Add a templateCache field to the application struct.
 type application struct {
-	errorLog *log.Logger
-	infoLog  *log.Logger
-	snippets *models.SnippetModel
+	errorLog      *log.Logger
+	infoLog       *log.Logger
+	snippets      *models.SnippetModel
+	templateCache map[string]*template.Template
+	formDecoder   *form.Decoder
 }
 
 func main() {
 	addr := flag.String("addr", ":4000", "HTTP network address")
 	dsn := flag.String("dsn", "web:letsgo@/snippetbox?parseTime=true", "MySQL data source name")
-
 	flag.Parse()
 
 	infoLog := log.New(os.Stdout, "INFO\t", log.Ldate|log.Ltime)
@@ -31,15 +33,24 @@ func main() {
 	if err != nil {
 		errorLog.Fatal(err)
 	}
-
 	defer db.Close()
 
-	app := &application{
-		errorLog: errorLog,
-		infoLog:  infoLog,
-		snippets: &models.SnippetModel{DB: db},
+	// Initialize a new template cache...
+	templateCache, err := newTemplateCache()
+	if err != nil {
+		errorLog.Fatal(err)
 	}
 
+	// Initialize a decoder instance...
+	formDecoder := form.NewDecoder()
+	// And add it to the application dependencies.
+	app := &application{
+		errorLog:      errorLog,
+		infoLog:       infoLog,
+		snippets:      &models.SnippetModel{DB: db},
+		templateCache: templateCache,
+		formDecoder:   formDecoder,
+	}
 	srv := &http.Server{
 		Addr:     *addr,
 		ErrorLog: errorLog,
