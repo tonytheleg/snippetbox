@@ -20,7 +20,7 @@ import (
 type application struct {
 	errorLog       *log.Logger
 	infoLog        *log.Logger
-	snippets       *models.SnippetModel
+	snippets       models.SnippetModelInterface
 	templateCache  map[string]*template.Template
 	formDecoder    *form.Decoder
 	sessionManager *scs.SessionManager
